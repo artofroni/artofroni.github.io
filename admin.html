@@ -28,6 +28,8 @@
     .icon { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; color: var(--text); }
     .icon:disabled { opacity: .35; cursor: default; }
     .icon.danger { color: #b3261e; }
+    .profil-foto { width: 96px; height: 120px; border-radius: 10px; overflow: hidden; background: var(--accent-soft); }
+    .profil-foto img { width: 100%; height: 100%; object-fit: cover; }
     #status { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 20;
       background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: .9rem; max-width: calc(100% - 32px); }
     @media (max-width: 560px) {
@@ -76,6 +78,18 @@
       <div id="list"></div>
     </section>
 
+    <section class="panel">
+      <h2>Profil ve bağlantılar</h2>
+      <p class="hint">Hakkımda bölümündeki fotoğraf ve İletişim'deki düğmeler. Boş bırakılan düğme sitede görünmez.</p>
+      <form id="profilForm">
+        <div class="profil-foto"><img id="fotoOnizleme" alt="" hidden></div>
+        <label for="foto">Roni'nin fotoğrafı (değiştirmek için seç)</label><input type="file" id="foto" accept="image/*">
+        <label for="instagram">Instagram kullanıcı adı</label><input id="instagram" placeholder="ör. artofroni" autocapitalize="off">
+        <label for="linkedin">LinkedIn kullanıcı adı</label><input id="linkedin" placeholder="ör. roniadiguzel" autocapitalize="off">
+        <button class="btn" type="submit">Kaydet</button>
+      </form>
+    </section>
+
     <p><a href="#" id="logout" class="link">Bu cihazdan çıkış yap</a></p>
   </div>
 </main>
@@ -90,6 +104,14 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 let cfg = null;
 try { cfg = JSON.parse(localStorage.getItem(KEY)); } catch {}
 let eserler = [], jsonSha = null, busy = false;
+let ayarlar = {}, ayarSha = null;
+
+// "@ad", "instagram.com/ad" veya tam link yazılsa da sadece kullanıcı adını al
+const kullanici = s => s.trim()
+  .replace(/^https?:\/\/(www\.)?/i, "")
+  .replace(/^(instagram\.com|linkedin\.com\/in)\//i, "")
+  .replace(/^@/, "")
+  .replace(/[/?#].*$/, "");
 
 function toast(msg, ms = 2500) {
   const s = $("status");
@@ -120,17 +142,26 @@ const file = (path, opts) => api(`${cfg.owner}/${cfg.repo}/contents/${path}`, op
 const raw = path => `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/HEAD/${path}`;
 
 async function load() {
-  const f = await file("eserler.json", { allow404: true });
+  const [f, a] = await Promise.all([
+    file("eserler.json", { allow404: true }),
+    file("ayarlar.json", { allow404: true })
+  ]);
   eserler = f ? JSON.parse(fromB64(f.content)) : [];
   jsonSha = f ? f.sha : null;
-  renderList();
+  ayarlar = a ? JSON.parse(fromB64(a.content)) : {};
+  ayarSha = a ? a.sha : null;
+  render();
+}
+
+async function putJson(path, data, sha, message) {
+  const body = { message, content: toB64(JSON.stringify(data, null, 2) + "\n") };
+  if (sha) body.sha = sha;
+  const r = await file(path, { method: "PUT", body: JSON.stringify(body) });
+  return r.content.sha;
 }
 
 async function saveJson(message) {
-  const body = { message, content: toB64(JSON.stringify(eserler, null, 2) + "\n") };
-  if (jsonSha) body.sha = jsonSha;
-  const r = await file("eserler.json", { method: "PUT", body: JSON.stringify(body) });
-  jsonSha = r.content.sha;
+  jsonSha = await putJson("eserler.json", eserler, jsonSha, message);
 }
 
 // Telefondan gelen büyük fotoğrafları küçült (en uzun kenar 1800 px)
@@ -153,11 +184,26 @@ function resize(img, max = 1800) {
 
 // Aynı anda tek işlem; hata olursa listeyi GitHub'daki hâline geri yükle
 async function run(msg, fn, done) {
-  if (busy) { toast("Önceki işlem bitiyor, biraz bekle"); renderList(); return; }
+  if (busy) { toast("Önceki işlem bitiyor, biraz bekle"); render(); return; }
   busy = true; toast(msg, 0);
-  try { await fn(); renderList(); toast(done); }
+  try { await fn(); render(); toast(done); }
   catch (e) { await load().catch(() => {}); toast("Hata: " + e.message, 6000); }
   finally { busy = false; }
+}
+
+function render() {
+  renderList();
+  renderProfil();
+}
+
+function renderProfil() {
+  $("instagram").value = ayarlar.instagram || "";
+  $("linkedin").value = ayarlar.linkedin || "";
+  const img = $("fotoOnizleme");
+  if (ayarlar.foto) {
+    img.src = raw(ayarlar.foto.split("?")[0]) + "?v=" + Date.now();
+    img.hidden = false;
+  }
 }
 
 function renderList() {
@@ -232,6 +278,25 @@ $("list").addEventListener("click", ev => {
       await saveJson("Sıra değişti");
     }, "Kaydedildi");
   }
+});
+
+$("profilForm").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const yeni = { ...ayarlar, instagram: kullanici($("instagram").value), linkedin: kullanici($("linkedin").value) };
+  const foto = $("foto").files[0];
+  run("Kaydediliyor…", async () => {
+    if (foto) {
+      const content = await resize(foto, 1400);
+      const mevcut = await file("images/roni.jpg", { allow404: true });
+      const body = { message: "Profil fotoğrafı güncellendi", content };
+      if (mevcut) body.sha = mevcut.sha;
+      await file("images/roni.jpg", { method: "PUT", body: JSON.stringify(body) });
+      yeni.foto = "images/roni.jpg?v=" + Date.now();
+    }
+    ayarSha = await putJson("ayarlar.json", yeni, ayarSha, "Profil ve bağlantılar güncellendi");
+    ayarlar = yeni;
+    $("foto").value = "";
+  }, "Kaydedildi");
 });
 
 $("saveSetup").addEventListener("click", async () => {

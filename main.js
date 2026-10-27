@@ -62,6 +62,26 @@ async function loadEserler() {
   }
 }
 
+// Profil fotoğrafı ve sosyal medya bağlantıları ayarlar.json'dan gelir
+async function loadAyarlar() {
+  let a = {};
+  try { a = await (await fetch("ayarlar.json?v=" + Date.now())).json(); } catch { return; }
+  const links = {
+    instagram: u => `https://www.instagram.com/${encodeURIComponent(u)}/`,
+    linkedin: u => `https://www.linkedin.com/in/${encodeURIComponent(u)}/`
+  };
+  for (const [ad, url] of Object.entries(links)) {
+    const el = document.getElementById("link-" + ad);
+    if (a[ad]) { el.href = url(a[ad]); el.hidden = false; }
+  }
+  if (a.foto) {
+    const box = document.getElementById("about-img");
+    const img = box.querySelector("img");
+    img.onload = () => box.classList.remove("empty");
+    img.src = a.foto;
+  }
+}
+
 function openLightbox(i) {
   current = (i + eserler.length) % eserler.length;
   const e = eserler[current];
@@ -109,3 +129,4 @@ document.querySelectorAll("section[id]").forEach(s => spy.observe(s));
 document.getElementById("year").textContent = new Date().getFullYear();
 reveal(document.querySelectorAll(".section-head, .section > h2, .section > .lead, .about > *, .card, .contact-links"));
 loadEserler();
+loadAyarlar();

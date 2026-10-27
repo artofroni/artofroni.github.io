@@ -22,11 +22,7 @@
     "alternateName": "Roni Adıgüzel",
     "email": "mailto:artofroni@gmail.com",
     "jobTitle": "Ressam, Güzel Sanatlar Lisesi öğrencisi",
-    "affiliation": { "@type": "School", "name": "Diyarbakır Güzel Sanatlar Lisesi" },
-    "sameAs": [
-      "https://instagram.com/KULLANICI_ADI",
-      "https://www.linkedin.com/in/KULLANICI_ADI"
-    ]
+    "affiliation": { "@type": "School", "name": "Diyarbakır Güzel Sanatlar Lisesi" }
   }
   </script>
 </head>
@@ -63,8 +59,8 @@
   </section>
 
   <section id="hakkimda" class="section about">
-    <div class="about-img">
-      <img src="images/roni.jpg" alt="Bahtiyar Roni Adıgüzel atölyede çalışırken" onerror="this.parentElement.classList.add('empty')">
+    <div class="about-img empty" id="about-img">
+      <img alt="Bahtiyar Roni Adıgüzel">
     </div>
     <div>
       <h2>Hakkımda</h2>
@@ -131,9 +127,9 @@
       <!-- WhatsApp: numarayı ülke koduyla yaz (ör. 905xxxxxxxxx) ve satırın yorumunu kaldır.
            Roni'nin değil, sipariş takibini yapacak aile üyesinin numarası olması önerilir.
       <a class="btn btn-ghost" href="https://wa.me/90XXXXXXXXXX" target="_blank" rel="noopener">WhatsApp</a> -->
-      <!-- Kullanıcı adlarını gerçekleriyle değiştir -->
-      <a class="btn btn-ghost" href="https://instagram.com/KULLANICI_ADI" target="_blank" rel="noopener">Instagram</a>
-      <a class="btn btn-ghost" href="https://www.linkedin.com/in/KULLANICI_ADI" target="_blank" rel="noopener">LinkedIn</a>
+      <!-- Instagram ve LinkedIn admin.html'den girilir; boşsa gizli kalır -->
+      <a class="btn btn-ghost" id="link-instagram" target="_blank" rel="noopener" hidden>Instagram</a>
+      <a class="btn btn-ghost" id="link-linkedin" target="_blank" rel="noopener" hidden>LinkedIn</a>
     </div>
   </section>
 

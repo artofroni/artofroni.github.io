@@ -38,6 +38,9 @@ a { color: inherit; }
 .nav nav { display: flex; gap: 20px; }
 .nav nav a { text-decoration: none; color: var(--muted); font-size: .95rem; }
 .nav nav a:hover, .nav nav a.active { color: var(--accent); }
+.menu-btn { display: none; background: none; border: 0; padding: 10px; margin-right: -10px; cursor: pointer; }
+.menu-btn span { display: block; width: 22px; height: 2px; background: var(--text); margin: 5px 0; transition: transform .25s; }
+section[id] { scroll-margin-top: 64px; }
 
 /* Giriş */
 .hero {
@@ -87,7 +90,8 @@ a { color: inherit; }
 .about { display: grid; grid-template-columns: 1fr 1.3fr; gap: 48px; align-items: center; }
 .about-img { border-radius: var(--radius); overflow: hidden; aspect-ratio: 4/5; background: var(--accent-soft); }
 .about-img img { width: 100%; height: 100%; object-fit: cover; }
-.about-img.empty img { display: none; }
+.about-img.empty { display: none; }
+.about:has(.about-img.empty) { grid-template-columns: minmax(0, 720px); }
 .facts { list-style: none; padding: 0; margin: 24px 0 0; border-top: 1px solid var(--line); }
 .facts li { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .facts span { display: inline-block; width: 110px; color: var(--muted); font-size: .9rem; }
@@ -147,11 +151,38 @@ a { color: inherit; }
   .reveal { opacity: 1; transform: none; }
 }
 
+/* Telefon */
 @media (max-width: 720px) {
-  .nav nav { gap: 12px; }
-  .nav nav a { font-size: .85rem; }
+  .menu-btn { display: block; }
+  .nav nav {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    flex-direction: column; gap: 0; padding: 4px 16px 12px;
+    background: var(--bg); border-bottom: 1px solid var(--line);
+    box-shadow: 0 12px 24px rgba(60,40,20,.08);
+  }
+  .nav.open nav { display: flex; }
+  .nav nav a { padding: 14px 0; font-size: 1.05rem; color: var(--text); border-bottom: 1px solid var(--line); }
+  .nav nav a:last-child { border-bottom: 0; }
+  .nav.open .menu-btn span:first-child { transform: translateY(3.5px) rotate(45deg); }
+  .nav.open .menu-btn span:last-child { transform: translateY(-3.5px) rotate(-45deg); }
+
+  .section { padding: 48px 16px; }
+  .hero { padding-top: 48px; }
+  .hero-actions .btn { flex: 1; text-align: center; }
+
+  .gallery { columns: 2; column-gap: 12px; }
+  .art { margin-bottom: 12px; border-radius: 10px; }
+  .art figcaption { padding: 8px 10px; font-size: .78rem; line-height: 1.45; }
+  .badge { top: 8px; left: 8px; padding: 2px 8px; font-size: .68rem; }
+
   .about { grid-template-columns: 1fr; gap: 28px; }
-}
-@media (max-width: 420px) {
-  .nav nav a[href="#hakkimda"] { display: none; }
+  .about-img { max-width: 320px; }
+  .facts span { display: block; width: auto; font-size: .8rem; }
+
+  .contact-links .btn { flex: 1 1 100%; }
+
+  .lightbox img { max-height: 72vh; }
+  .lb-prev, .lb-next { top: auto; bottom: 12px; }
+  .lb-prev { left: 24%; }
+  .lb-next { right: 24%; }
 }

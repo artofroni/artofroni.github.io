@@ -106,6 +106,16 @@ lightbox.querySelector(".lb-close").onclick = closeLightbox;
 lightbox.querySelector(".lb-prev").onclick = () => openLightbox(current - 1);
 lightbox.querySelector(".lb-next").onclick = () => openLightbox(current + 1);
 lightbox.addEventListener("click", ev => { if (ev.target === lightbox) closeLightbox(); });
+
+// Telefonda parmakla sağa/sola kaydırarak eser değiştir
+let touchX = null;
+lightbox.addEventListener("touchstart", ev => { touchX = ev.touches[0].clientX; }, { passive: true });
+lightbox.addEventListener("touchend", ev => {
+  if (touchX === null) return;
+  const dx = ev.changedTouches[0].clientX - touchX;
+  touchX = null;
+  if (Math.abs(dx) > 50) openLightbox(current + (dx < 0 ? 1 : -1));
+});
 document.addEventListener("keydown", ev => {
   if (lightbox.hidden) return;
   if (ev.key === "Escape") closeLightbox();
@@ -118,6 +128,17 @@ gallery.addEventListener("contextmenu", ev => { if (ev.target.tagName === "IMG")
 
 // Menüde bulunulan bölümü vurgula
 const navLinks = document.querySelectorAll(".nav nav a");
+
+// Telefonda açılır menü
+const navEl = document.querySelector(".nav");
+const menuBtn = document.getElementById("menu-btn");
+function setMenu(open) {
+  navEl.classList.toggle("open", open);
+  menuBtn.setAttribute("aria-expanded", open);
+}
+menuBtn.addEventListener("click", () => setMenu(!navEl.classList.contains("open")));
+navLinks.forEach(a => a.addEventListener("click", () => setMenu(false)));
+
 const spy = new IntersectionObserver(entries => {
   entries.forEach(en => {
     if (!en.isIntersecting) return;

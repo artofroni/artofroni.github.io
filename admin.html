@@ -301,6 +301,12 @@ $("profilForm").addEventListener("submit", ev => {
 
 $("saveSetup").addEventListener("click", async () => {
   cfg = { owner: $("owner").value.trim(), repo: $("repo").value.trim(), token: $("token").value.trim() };
+  // "musrates/roni" yazılırsa da çalışsın
+  if (cfg.repo.includes("/")) [cfg.owner, cfg.repo] = cfg.repo.split("/").slice(-2);
+  if (!/^(github_pat_|ghp_)/.test(cfg.token)) {
+    toast("Bu bir erişim anahtarı değil. Anahtar github_pat_ ile başlar; GitHub şifreni yazma.", 8000);
+    return;
+  }
   toast("Bağlanılıyor…", 0);
   try {
     const repo = await api(`${cfg.owner}/${cfg.repo}`);

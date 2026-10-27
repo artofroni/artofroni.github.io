@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Eser Yönetimi</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .admin { max-width: 760px; margin: 0 auto; padding: 32px 16px 96px; }
+    .admin h1 { font-size: 2rem; }
+    .admin h2 { font-size: 1.3rem; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 24px; }
+    label { display: block; font-size: .85rem; color: var(--muted); margin: 14px 0 4px; }
+    input, select { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--text); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    button.btn { cursor: pointer; font: inherit; margin-top: 18px; }
+    .hint { font-size: .85rem; color: var(--muted); }
+    .item { display: grid; grid-template-columns: 72px 1fr auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .item:last-child { border-bottom: 0; }
+    .item img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; background: var(--accent-soft); }
+    .item .meta { font-size: .85rem; color: var(--muted); }
+    .actions { display: flex; gap: 6px; align-items: center; }
+    .actions select { width: auto; padding: 6px 8px; }
+    .icon { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; color: var(--text); }
+    .icon:disabled { opacity: .35; cursor: default; }
+    .icon.danger { color: #b3261e; }
+    #status { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 20;
+      background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: .9rem; max-width: calc(100% - 32px); }
+    @media (max-width: 560px) {
+      .row { grid-template-columns: 1fr; }
+      .item { grid-template-columns: 56px 1fr; }
+      .item img { width: 56px; height: 56px; }
+      .actions { grid-column: 1 / -1; flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+<main class="admin">
+  <h1>Eser Yönetimi</h1>
+  <p class="hint">Yaptığın her değişiklik 1-2 dakika içinde sitede görünür. <a href="./" class="link">Siteyi aç →</a></p>
+
+  <section class="panel" id="setup" hidden>
+    <h2>İlk kurulum</h2>
+    <p class="hint">Bu bilgiler sadece bu cihazda saklanır. Her telefonda / bilgisayarda bir kez girilir.</p>
+    <label for="owner">GitHub kullanıcı adı</label><input id="owner" autocapitalize="off">
+    <label for="repo">Depo (repo) adı</label><input id="repo" autocapitalize="off">
+    <label for="token">Erişim anahtarı (token)</label><input id="token" type="password" autocomplete="off">
+    <button class="btn" id="saveSetup">Bağlan</button>
+  </section>
+
+  <div id="app" hidden>
+    <section class="panel">
+      <h2>Yeni eser ekle</h2>
+      <form id="addForm">
+        <label for="file">Fotoğraf</label><input type="file" id="file" accept="image/*" required>
+        <label for="baslik">Eser adı</label><input id="baslik" required>
+        <div class="row">
+          <div><label for="teknik">Teknik</label><input id="teknik" placeholder="Yağlı boya"></div>
+          <div><label for="olcu">Ölçü</label><input id="olcu" placeholder="50×70 cm"></div>
+        </div>
+        <div class="row">
+          <div><label for="yil">Yıl</label><input id="yil" type="number" inputmode="numeric"></div>
+          <div><label for="durum">Durum</label><select id="durum"></select></div>
+        </div>
+        <button class="btn" type="submit">Eseri ekle</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Eserler (<span id="count">0</span>)</h2>
+      <p class="hint">Sitede bu sırayla görünür. Durumu değiştirmek için listeden seçmen yeterli.</p>
+      <div id="list"></div>
+    </section>
+
+    <p><a href="#" id="logout" class="link">Bu cihazdan çıkış yap</a></p>
+  </div>
+</main>
+<div id="status" hidden></div>
+
+<script>
+const KEY = "roni-admin";
+const DURUM = [["", "Sergide"], ["satilik", "Satılık"], ["satildi", "Satıldı"]];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+let cfg = null;
+try { cfg = JSON.parse(localStorage.getItem(KEY)); } catch {}
+let eserler = [], jsonSha = null, busy = false;
+
+function toast(msg, ms = 2500) {
+  const s = $("status");
+  s.textContent = msg; s.hidden = false;
+  clearTimeout(toast.t);
+  if (ms) toast.t = setTimeout(() => s.hidden = true, ms);
+}
+
+// Türkçe karakterler için UTF-8 güvenli base64
+const toB64 = str => { let bin = ""; new TextEncoder().encode(str).forEach(b => bin += String.fromCharCode(b)); return btoa(bin); };
+const fromB64 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, "")), c => c.charCodeAt(0)));
+
+async function api(url, opts = {}) {
+  const res = await fetch("https://api.github.com/repos/" + url, {
+    method: opts.method || "GET",
+    body: opts.body,
+    cache: "no-store",
+    headers: { Authorization: `Bearer ${cfg.token}`, Accept: "application/vnd.github+json" }
+  });
+  if (res.status === 404 && opts.allow404) return null;
+  if (!res.ok) {
+    const msg = (await res.json().catch(() => ({}))).message || res.status;
+    throw new Error(res.status === 401 ? "Erişim anahtarı geçersiz veya süresi dolmuş" : msg);
+  }
+  return res.json();
+}
+const file = (path, opts) => api(`${cfg.owner}/${cfg.repo}/contents/${path}`, opts);
+const raw = path => `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/HEAD/${path}`;
+
+async function load() {
+  const f = await file("eserler.json", { allow404: true });
+  eserler = f ? JSON.parse(fromB64(f.content)) : [];
+  jsonSha = f ? f.sha : null;
+  renderList();
+}
+
+async function saveJson(message) {
+  const body = { message, content: toB64(JSON.stringify(eserler, null, 2) + "\n") };
+  if (jsonSha) body.sha = jsonSha;
+  const r = await file("eserler.json", { method: "PUT", body: JSON.stringify(body) });
+  jsonSha = r.content.sha;
+}
+
+// Telefondan gelen büyük fotoğrafları küçült (en uzun kenar 1800 px)
+function resize(img, max = 1800) {
+  return new Promise((ok, fail) => {
+    const el = new Image();
+    el.onload = () => {
+      const k = Math.min(1, max / Math.max(el.width, el.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(el.width * k);
+      c.height = Math.round(el.height * k);
+      c.getContext("2d").drawImage(el, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(el.src);
+      ok(c.toDataURL("image/jpeg", 0.85).split(",")[1]);
+    };
+    el.onerror = () => fail(new Error("Fotoğraf okunamadı"));
+    el.src = URL.createObjectURL(img);
+  });
+}
+
+// Aynı anda tek işlem; hata olursa listeyi GitHub'daki hâline geri yükle
+async function run(msg, fn, done) {
+  if (busy) { toast("Önceki işlem bitiyor, biraz bekle"); renderList(); return; }
+  busy = true; toast(msg, 0);
+  try { await fn(); renderList(); toast(done); }
+  catch (e) { await load().catch(() => {}); toast("Hata: " + e.message, 6000); }
+  finally { busy = false; }
+}
+
+function renderList() {
+  $("count").textContent = eserler.length;
+  $("list").innerHTML = eserler.length ? eserler.map((e, i) => `
+    <div class="item">
+      <img src="${raw(e.dosya)}" alt="" loading="lazy" onerror="this.onerror=null;this.removeAttribute('src')">
+      <div>
+        <strong>${esc(e.baslik)}</strong>
+        <div class="meta">${esc([e.teknik, e.olcu, e.yil].filter(Boolean).join(" · "))}</div>
+      </div>
+      <div class="actions">
+        <select class="durum" data-i="${i}" aria-label="Durum">
+          ${DURUM.map(([v, t]) => `<option value="${v}" ${(e.durum || "") === v ? "selected" : ""}>${t}</option>`).join("")}
+        </select>
+        <button class="icon" data-act="up" data-i="${i}" ${i === 0 ? "disabled" : ""} aria-label="Yukarı taşı">↑</button>
+        <button class="icon" data-act="down" data-i="${i}" ${i === eserler.length - 1 ? "disabled" : ""} aria-label="Aşağı taşı">↓</button>
+        <button class="icon danger" data-act="del" data-i="${i}">Sil</button>
+      </div>
+    </div>`).join("") : `<p class="hint">Henüz eser yok. Yukarıdan ilk eserini ekle.</p>`;
+}
+
+$("durum").innerHTML = DURUM.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+$("yil").value = new Date().getFullYear();
+
+$("addForm").addEventListener("submit", ev => {
+  ev.preventDefault();
+  const eser = {
+    dosya: `images/eser-${Date.now()}.jpg`,
+    baslik: $("baslik").value.trim(),
+    teknik: $("teknik").value.trim(),
+    olcu: $("olcu").value.trim(),
+    yil: +$("yil").value || "",
+    durum: $("durum").value
+  };
+  run("Eser yükleniyor…", async () => {
+    const content = await resize($("file").files[0]);
+    await file(eser.dosya, { method: "PUT", body: JSON.stringify({ message: `Görsel: ${eser.baslik}`, content }) });
+    eserler.unshift(eser);
+    await saveJson(`Eser eklendi: ${eser.baslik}`);
+    ev.target.reset();
+    $("yil").value = new Date().getFullYear();
+  }, "Eser eklendi");
+});
+
+$("list").addEventListener("change", ev => {
+  const s = ev.target.closest(".durum");
+  if (!s) return;
+  const e = eserler[+s.dataset.i];
+  run("Kaydediliyor…", async () => {
+    e.durum = s.value;
+    await saveJson(`Durum: ${e.baslik} → ${s.selectedOptions[0].text}`);
+  }, "Kaydedildi");
+});
+
+$("list").addEventListener("click", ev => {
+  const b = ev.target.closest("button[data-act]");
+  if (!b) return;
+  const i = +b.dataset.i, e = eserler[i];
+  if (b.dataset.act === "del") {
+    if (!confirm(`"${e.baslik}" silinsin mi? Bu geri alınamaz.`)) return;
+    run("Siliniyor…", async () => {
+      eserler.splice(i, 1);
+      await saveJson(`Eser silindi: ${e.baslik}`);
+      const f = await file(e.dosya, { allow404: true });
+      if (f) await file(e.dosya, { method: "DELETE", body: JSON.stringify({ message: `Görsel silindi: ${e.baslik}`, sha: f.sha }) });
+    }, "Silindi");
+  } else {
+    const j = b.dataset.act === "up" ? i - 1 : i + 1;
+    run("Kaydediliyor…", async () => {
+      [eserler[i], eserler[j]] = [eserler[j], eserler[i]];
+      await saveJson("Sıra değişti");
+    }, "Kaydedildi");
+  }
+});
+
+$("saveSetup").addEventListener("click", async () => {
+  cfg = { owner: $("owner").value.trim(), repo: $("repo").value.trim(), token: $("token").value.trim() };
+  toast("Bağlanılıyor…", 0);
+  try {
+    const repo = await api(`${cfg.owner}/${cfg.repo}`);
+    if (!repo.permissions || !repo.permissions.push) throw new Error("Bu anahtarın depoya yazma izni yok");
+    await load();
+    try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch {}
+    $("setup").hidden = true; $("app").hidden = false;
+    toast("Bağlandı");
+  } catch (e) {
+    toast("Bağlanılamadı: " + e.message, 6000);
+  }
+});
+
+$("logout").addEventListener("click", ev => {
+  ev.preventDefault();
+  try { localStorage.removeItem(KEY); } catch {}
+  location.reload();
+});
+
+if (cfg) {
+  $("app").hidden = false;
+  toast("Yükleniyor…", 0);
+  load().then(() => toast("Hazır")).catch(e => toast("Hata: " + e.message + " (çıkış yapıp yeniden bağlan)", 8000));
+} else {
+  $("setup").hidden = false;
+}
+</script>
+</body>
+</html>
